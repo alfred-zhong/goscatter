@@ -11,6 +11,14 @@ import (
 	"github.com/fatih/color"
 )
 
+// Scatter is used to passing data between c, mainConn and scatterConns.
+//
+// Data reads from c will be write to mainConn and all scatterConns.
+// Data reads from mainConn will be write to c.
+// Data reads from scatterConns will be droped.
+//
+// Scatter will stops when c or mainConn closed. And will not stop when any
+// of scatterConns closed.
 type Scatter struct {
 	mainAddr     *net.TCPAddr
 	scatterAddrs []*net.TCPAddr
@@ -49,7 +57,7 @@ func NewScatter(conn net.Conn, mainAddr string, scatterAddrs []string) (*Scatter
 	}, nil
 }
 
-// Run the scatter and pass data
+// Run the scatter and pass data.
 func (s *Scatter) Run() error {
 	// dial mainAddr
 	mConn, err := net.DialTCP("tcp", nil, s.mainAddr)

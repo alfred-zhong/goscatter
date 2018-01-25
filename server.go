@@ -78,7 +78,7 @@ func (s *Server) Run() error {
 	return nil
 }
 
-// Stop the server
+// Stop the server.
 func (s *Server) Stop() {
 	if s.listener != nil {
 		s.listener.Close()
