@@ -1,12 +1,14 @@
 package goscatter
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net"
-	"sync"
+
+	"github.com/fatih/color"
 )
 
 type Scatter struct {
@@ -16,6 +18,8 @@ type Scatter struct {
 	c            net.Conn
 	mainConn     net.Conn
 	scatterConns []net.Conn
+
+	stopCh chan struct{}
 }
 
 // NewScatter creates Scatter used to pass messages between conn and
@@ -37,67 +41,95 @@ func NewScatter(conn net.Conn, mainAddr string, scatterAddrs []string) (*Scatter
 		}
 	}
 
-	return &Scatter{mainAddr: mAddr, scatterAddrs: sAddrs, c: conn}, nil
+	return &Scatter{
+		mainAddr:     mAddr,
+		scatterAddrs: sAddrs,
+		c:            conn,
+		stopCh:       make(chan struct{}),
+	}, nil
 }
 
 // Run the scatter and pass data
 func (s *Scatter) Run() error {
+	// dial mainAddr
 	mConn, err := net.DialTCP("tcp", nil, s.mainAddr)
 	if err != nil {
 		return fmt.Errorf("tcp dial to the main address fail: %v", err)
 	}
 	s.mainConn = mConn
 
-	// copy data between in connection and the main out connection
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() {
-		io.Copy(s.c, s.mainConn)
-		wg.Done()
-	}()
-	go func() {
-		io.Copy(s.mainConn, s.c)
-		wg.Done()
-	}()
+	// dial all of scatterAddrs
+	s.scatterConns = make([]net.Conn, 0, len(s.scatterAddrs))
+	for _, scatterAddr := range s.scatterAddrs {
+		if sConn, err := net.DialTCP("tcp", nil, scatterAddr); err == nil {
+			s.scatterConns = append(s.scatterConns, sConn)
+		}
+	}
 
-	// copy data from in connection to scatter connections
+	// copy data from in connection to main and scatter connections
 	go func() {
-		// dial all of scatterAddrs
-		s.scatterConns = make([]net.Conn, 0, len(s.scatterAddrs))
-		for _, scatterAddr := range s.scatterAddrs {
-			if sConn, err := net.DialTCP("tcp", nil, scatterAddr); err == nil {
-				s.scatterConns = append(s.scatterConns, sConn)
+		bytes := make([]byte, 512)
+		for {
+			reader := bufio.NewReader(s.c)
+			n, err := reader.Read(bytes)
+			if err != nil {
+				if err == io.EOF {
+					break
+				}
+				continue
+			}
+
+			// write bytes to main connection
+			s.mainConn.Write(bytes[:n])
+
+			// write bytes to all of scatter connections
+			for _, scatterConn := range s.scatterConns {
+				scatterConn.Write(bytes[:n])
 			}
 		}
 
-		// drop all data from scatter connections
-		go func() {
-			readers := make([]io.Reader, 0, len(s.scatterConns))
-			for _, sConn := range s.scatterConns {
-				readers = append(readers, sConn)
-			}
-			smr := io.MultiReader(readers...)
-			io.Copy(ioutil.Discard, smr)
-		}()
+		s.stopCh <- struct{}{}
+	}()
 
-		// copy data from in connection to scatter connections
-		writers := make([]io.Writer, 0, len(s.scatterConns))
+	// copy data from main connection to in connection
+	go func() {
+		bytes := make([]byte, 512)
+		for {
+			reader := bufio.NewReader(s.mainConn)
+			n, err := reader.Read(bytes)
+			if err != nil {
+				if err == io.EOF {
+					break
+				}
+				continue
+			}
+
+			// write bytes to in connection
+			s.c.Write(bytes[:n])
+		}
+
+		s.stopCh <- struct{}{}
+	}()
+
+	// drop all data from scatter connections
+	go func() {
+		readers := make([]io.Reader, 0, len(s.scatterConns))
 		for _, sConn := range s.scatterConns {
-			writers = append(writers, sConn)
+			readers = append(readers, sConn)
 		}
-		smw := io.MultiWriter(writers...)
-		io.Copy(smw, s.c)
+		smr := io.MultiReader(readers...)
+		io.Copy(ioutil.Discard, smr)
 	}()
-
-	// Wait blocks until any of connection is closed
-	wg.Wait()
 
 	// close connections
+	<-s.stopCh
 	s.c.Close()
 	s.mainConn.Close()
 	for _, sConn := range s.scatterConns {
 		sConn.Close()
 	}
+
+	color.Blue("disconnect from %v\n", s.c.RemoteAddr())
 
 	return nil
 }

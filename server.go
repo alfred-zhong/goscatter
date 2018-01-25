@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"net"
+
+	"github.com/fatih/color"
 )
 
 // Server is used to manage scatters. When receiving a connection, server
@@ -38,6 +40,7 @@ func (s *Server) AddScatterAddr(scatterAddr string) error {
 	if _, err := net.ResolveTCPAddr("tcp", scatterAddr); err != nil {
 		return errors.New("scatterAddr identified as tcp address is invalid")
 	}
+	s.scatterAddrs = append(s.scatterAddrs, scatterAddr)
 	return nil
 }
 
@@ -51,11 +54,15 @@ func (s *Server) Run() error {
 	defer listener.Close()
 	s.listener = listener
 
+	color.Green("server started. Listen at %d\n", s.port)
+
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
 			break
 		}
+
+		color.Blue("connect from %v\n", conn.RemoteAddr())
 
 		// create scatter and run
 		scatter, err := NewScatter(conn, s.remoteAddr, s.scatterAddrs)
@@ -67,6 +74,7 @@ func (s *Server) Run() error {
 		go scatter.Run()
 	}
 
+	color.Green("server stop.\n")
 	return nil
 }
 
