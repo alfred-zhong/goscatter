@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 
 	"github.com/fatih/color"
 )
@@ -71,7 +72,13 @@ func (s *Server) Run() error {
 			continue
 		}
 
-		go scatter.Run()
+		go func() {
+			if err := scatter.Run(); err != nil {
+				fmt.Fprintf(os.Stderr, "Scatter run fails: %v\n", err)
+				conn.Close()
+				color.Blue("disconnect from %v\n", conn.RemoteAddr())
+			}
+		}()
 	}
 
 	color.Green("server stop.\n")
