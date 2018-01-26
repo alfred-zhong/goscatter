@@ -19,3 +19,5 @@ debug
 # go binary file
 /_listen/_listen
 /_main/goscatter
+
+/dist
