@@ -1,11 +1,15 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"os/signal"
 
+	"github.com/fatih/color"
+
 	"github.com/alfred-zhong/goscatter"
+	"github.com/google/gops/agent"
 	"github.com/jinzhu/configor"
 )
 
@@ -15,18 +19,34 @@ type config struct {
 	Scatters   []string
 }
 
-const usage = `usage: tcp-scatter conf.json`
+const usage = `usage: tcp-scatter [--gops-port=?] conf.json`
 
 func main() {
-	if len(os.Args) < 2 {
+	gopsPort := flag.Int("gops-port", 0, "port used to listen by gops")
+	flag.Parse()
+
+	if flag.NArg() < 1 {
 		fmt.Println(usage)
 		os.Exit(1)
 	}
 
+	// gops
+	if *gopsPort > 0 {
+		gopsOptions := agent.Options{
+			Addr:            fmt.Sprintf("127.0.0.1:%d", *gopsPort),
+			ShutdownCleanup: true,
+		}
+		if err := agent.Listen(gopsOptions); err != nil {
+			fmt.Fprintf(os.Stderr, "gops listen on %d fail\n", *gopsPort)
+			os.Exit(5)
+		}
+		color.Magenta("gops listen on port: %d\n", *gopsPort)
+	}
+
 	// load config file
 	var cfg config
-	if err := configor.Load(&cfg, os.Args[1]); err != nil {
-		fmt.Fprintf(os.Stderr, "load config from %s fail\n", os.Args[1])
+	if err := configor.Load(&cfg, flag.Arg(0)); err != nil {
+		fmt.Fprintf(os.Stderr, "load config from %s fail\n", flag.Arg(0))
 		os.Exit(2)
 	}
 
