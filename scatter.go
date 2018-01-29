@@ -77,14 +77,11 @@ func (s *Scatter) Run() error {
 	// copy data from in connection to main and scatter connections
 	go func() {
 		bytes := make([]byte, 512)
+		reader := bufio.NewReader(s.c)
 		for {
-			reader := bufio.NewReader(s.c)
 			n, err := reader.Read(bytes)
 			if err != nil {
-				if err == io.EOF {
-					break
-				}
-				continue
+				break
 			}
 
 			// write bytes to main connection
@@ -102,14 +99,11 @@ func (s *Scatter) Run() error {
 	// copy data from main connection to in connection
 	go func() {
 		bytes := make([]byte, 512)
+		reader := bufio.NewReader(s.mainConn)
 		for {
-			reader := bufio.NewReader(s.mainConn)
 			n, err := reader.Read(bytes)
 			if err != nil {
-				if err == io.EOF {
-					break
-				}
-				continue
+				break
 			}
 
 			// write bytes to in connection

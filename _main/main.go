@@ -6,9 +6,8 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/fatih/color"
-
 	"github.com/alfred-zhong/goscatter"
+	"github.com/fatih/color"
 	"github.com/google/gops/agent"
 	"github.com/jinzhu/configor"
 )
