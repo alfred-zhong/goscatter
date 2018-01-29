@@ -53,7 +53,7 @@ func NewScatter(conn net.Conn, mainAddr string, scatterAddrs []string) (*Scatter
 		mainAddr:     mAddr,
 		scatterAddrs: sAddrs,
 		c:            conn,
-		stopCh:       make(chan struct{}),
+		stopCh:       make(chan struct{}, 2),
 	}, nil
 }
 
