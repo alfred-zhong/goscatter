@@ -1,0 +1,19 @@
+language: go
+
+go:
+  - "1.10"
+  - "1.9"
+  - "1.8"
+
+install:
+  - go get github.com/alfred-zhong/goscatter
+  - go get github.com/fatih/color
+  - go get github.com/google/gops/agent
+  - go get github.com/jinzhu/configor
+
+script:
+  - go test ./...
+  - make build-linux-amd64
+
+after_script:
+  - make clean
